@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from copy import deepcopy
@@ -55,6 +56,7 @@ class Runner:
 
         self.stop_camera_feed = None
         self.display_thread = None
+        self.last_traj_dir = None
 
         # Make Sure Log Directorys Exist #
         self.success_logdir = os.path.join(data_dir, "success", datetime.now().strftime("%Y-%m-%d"))
@@ -113,15 +115,15 @@ class Runner:
 
         if mode == "collect":
             # Assume failure first, move to success post-run
+            if len(self.full_cam_ids) != 6:
+                raise ValueError("WARNING: User is trying to collect data without all three cameras running!")
             save_dir = os.path.join(self.failure_logdir, traj_name)
         elif mode == "evaluate":
             save_dir = os.path.join(self.eval_logdir, traj_name)
         elif mode == "practice":
             save_dir, recording_dir, save_filepath = None, None, None
-        
+
         if save_dir is not None:
-            if len(self.full_cam_ids) != 6:
-                raise ValueError("WARNING: User is trying to collect data without all three cameras running!")
             recording_dir = os.path.join(save_dir, "recordings")
             save_filepath = os.path.join(save_dir, "trajectory.h5")
             os.makedirs(save_dir, exist_ok=True)
@@ -142,6 +144,7 @@ class Runner:
 
 
         self.traj_running = True
+        traj_start_time = time.time()
         self.env._robot.establish_connection()
         controller_info = run_trajectory( # This is from trajectory_utils.py
             self.env,
@@ -163,7 +166,55 @@ class Runner:
                 new_save_dir = os.path.join(self.success_logdir, traj_name)
                 shutil.move(save_dir, new_save_dir)
                 save_dir = new_save_dir
-    
+
+        if save_dir is not None:
+            self._write_traj_metadata(save_dir, traj_start_time, controller_info)
+            self.last_traj_dir = save_dir
+
+        return controller_info
+
+    def _write_traj_metadata(self, save_dir, traj_start_time, controller_info):
+        """Write metadata.json with automatic fields to the trajectory directory."""
+        duration_sec = round(time.time() - traj_start_time, 2)
+        outcome = "success" if controller_info.get("success") else "failure"
+        metadata = {
+            "outcome": outcome,
+            "num_steps": controller_info.get("t_step", 0),
+            "duration_sec": duration_sec,
+            "policy": self.controller.get_name(),
+            "robot": f"{robot_type}-{robot_serial_number}",
+            "timestamp": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+            "data_source": self._get_data_source(),
+        }
+        if hasattr(self.controller, "current_instruction"):
+            metadata["instruction"] = self.controller.current_instruction
+        filepath = os.path.join(save_dir, "metadata.json")
+        with open(filepath, "w") as f:
+            json.dump(metadata, f, indent=2)
+        yellow_print(f"Saved metadata to {filepath}")
+
+    def _get_data_source(self):
+        name = self.controller.get_name()
+        if any(k in name for k in ("pi0", "policy", "aawr")):
+            return "policy_rollout"
+        if any(k in name for k in ("occulus", "spacemouse", "gello", "keyboard")):
+            return "human_teleop"
+        if "replay" in name:
+            return "replay"
+        return "unknown"
+
+    def update_traj_metadata(self, updates: dict):
+        """Merge operator-supplied fields into the last trajectory's metadata.json."""
+        if self.last_traj_dir is None:
+            yellow_print("update_traj_metadata: no trajectory has been run yet")
+            return
+        filepath = os.path.join(self.last_traj_dir, "metadata.json")
+        with open(filepath, "r") as f:
+            metadata = json.load(f)
+        metadata.update(updates)
+        with open(filepath, "w") as f:
+            json.dump(metadata, f, indent=2)
+
     def calibrate_camera(self, cam_id, reset_robot=True):
         self.traj_running = True
         self.env._robot.establish_connection()
@@ -211,38 +262,34 @@ class Runner:
             while not self.stop_camera_feed.is_set():
                 try:
                     self.camera_feed, self.cam_ids = self.get_camera_feed()
+                    # Show only left stereo feeds (one per physical camera)
                     if camera_id is not None:
-                        self.camera_feed = [feed for i, feed in enumerate(self.camera_feed) if str(camera_id) in self.cam_ids[i] ]
+                        pairs = [(feed, cid) for feed, cid in zip(self.camera_feed, self.cam_ids) if str(camera_id) in cid]
+                    else:
+                        pairs = [(feed, cid) for feed, cid in zip(self.camera_feed, self.cam_ids) if cid.endswith("_left")]
+                    if pairs:
+                        self.camera_feed, self.cam_ids = zip(*pairs)
+                        self.camera_feed, self.cam_ids = list(self.camera_feed), list(self.cam_ids)
                 except Exception as e:
                     # print("Failed to get camera feed:", e)
                     time.sleep(0.1)
                     continue
-                                
+
                 from PIL import Image
-                overlay_imgs = [
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                ]
+                overlay_imgs = [None] * len(self.camera_feed)
                 for i in range(len(self.camera_feed)):
                     if overlay_imgs[i] is None:
                         continue
                     img = self.camera_feed[i]
-                    overlay_img = Image.open(overlay_imgs[i])
-                    overlay_img = np.array(overlay_img)
+                    overlay_img = np.array(Image.open(overlay_imgs[i]))
                     if self.overlay_mode == 0:
                         continue
                     elif self.overlay_mode == 1:
                         self.camera_feed[i] = cv2.addWeighted(img, 0.5, overlay_img, 0.5, 0)
                     elif self.overlay_mode == 2:
                         self.camera_feed[i] = overlay_img
-                # self.camera_feed = self.camera_feed[2:]
 
-                cols = [np.vstack(self.camera_feed[i:i+2]) for i in range(0, len(self.camera_feed), 2)]
-                grid = np.hstack(cols)
+                grid = np.hstack(self.camera_feed)
                 cv2.imshow("eva", cv2.cvtColor(cv2.resize(grid, (0, 0), fx=0.5, fy=0.5), cv2.COLOR_RGB2BGR))
 
                 key = cv2.waitKey(1) & 0xFF
