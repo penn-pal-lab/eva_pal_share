@@ -1,0 +1,28 @@
+Perform object detection on this image for the task: "{task_instruction}"
+
+RULES:
+1. Detect only COMPLETE, physically distinct objects. Never detect parts of an object.
+   - WRONG: "pineapple_body", "pineapple_leaf", "cup_handle"
+   - RIGHT: "pineapple_toy", "cup"
+   - WRONG: "B b
+2. Limit to 10 objects maximum. Prioritise objects mentioned or implied by the task first,
+   then other objects on the table a robot might interact with.
+3. Task-relevant objects first: identify and label the objects the task refers to before
+   anything else, using colors/descriptors from the instruction where applicable.
+   (e.g. if task says "pick up the red apple", your first bbox should be the red apple)
+4. If the same object appears multiple times, label them object_1, object_2, etc.
+   If objects are nested (e.g. cup inside bowl), detect each whole object separately —
+   do NOT split either into parts.
+5. DO NOT include: robot, robot gripper, table surface, walls, floor, people,
+   or objects too far away to be relevant.
+6. Coordinates: normalized 0–1000 as integers, format [ymin, xmin, ymax, xmax].
+
+Return a single JSON object (no code fencing, no extra text, start with {{ end with }}):
+{{
+    "bboxes": [
+        {{"box_2d": [ymin, xmin, ymax, xmax], "label": "object name"}},
+        ...
+    ]
+}}
+
+Only include objects you actually see in the image.
