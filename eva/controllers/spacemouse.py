@@ -260,16 +260,25 @@ DEFAULT_KEY_MACROS = {
     ord("6"): ("roll_cw",       -1),
     ord("7"): ("rotate_left",   +1),
     ord("8"): ("rotate_right",  -1),
+    ord("k"): ("lift_up",       +1),
+    ord("j"): ("close_gripper", +1),
 }
 
 # Macro definitions: name_prefix → (axis_index_range, magnitude_per_unit)
+# Indices 0..2 = linear vel, 3..5 = angular vel, 6 = gripper command.
 _MACRO_DEFS = {
     "tilt":     (slice(3, 6), np.array([0, 1, 0]), 0.175),
     "move":     (slice(0, 3), np.array([1, 0, 0]), 0.053),
     "side":     (slice(0, 3), np.array([0, 1, 0]), 0.053),
+    "lift":     (slice(0, 3), np.array([0, 0, 1]), 0.053),
     "roll":     (slice(3, 6), np.array([0, 0, 1]), 0.233),
     "rotate":   (slice(3, 6), np.array([1, 0, 0]), 0.175),
+    "close":    (slice(6, 7), np.array([1]),       1.0),
 }
+
+# Macros whose primary effect is on the gripper channel — when active, the
+# spacemouse hardware grasp signal must NOT override action[6].
+_GRIPPER_MACRO_PREFIXES = {"close"}
 
 
 class SpaceMouse:
@@ -306,6 +315,7 @@ class SpaceMouse:
         self._macro_queue = deque(maxlen=self.queue_size)
         self._macro_step = None
         self._key2macro = dict(DEFAULT_KEY_MACROS)
+        self._step_scale = 1.0  # set by Runner via set_step_scale (`l` key)
 
         self._display_controls()
 
@@ -382,16 +392,21 @@ class SpaceMouse:
 
     # ── Macro helpers ──
 
+    def set_step_scale(self, scale):
+        """Scale macro magnitudes by `scale`. Called by Runner on `l` key."""
+        self._step_scale = float(scale)
+
     def _make_macro(self, name, sign):
-        """Return (action_vec, repeat_steps) for the named macro."""
+        """Return (action_vec, repeat_steps, is_gripper) for the named macro."""
         H = 1  # chunk horizon
         prefix = name.split("_")[0]
         if prefix not in _MACRO_DEFS:
             raise ValueError(f"Unknown macro: {name}")
         sl, axis, mag = _MACRO_DEFS[prefix]
         vec = np.zeros(7, dtype=np.float32)
-        vec[sl] = axis * mag * sign * 10
-        return vec, H
+        vec[sl] = axis * mag * sign * 10 * self._step_scale
+        is_gripper = prefix in _GRIPPER_MACRO_PREFIXES
+        return vec, H, is_gripper
 
     # ── Forward ──
 
@@ -407,7 +422,7 @@ class SpaceMouse:
         if self._macro_step is not None or self._macro_queue:
             if self._macro_step is None:
                 self._macro_step = list(self._macro_queue.popleft())
-            vec, remaining = self._macro_step
+            vec, remaining, is_gripper = self._macro_step
             action = vec.copy()
             self._macro_step[1] -= 1
             if self._macro_step[1] <= 0:
@@ -415,8 +430,12 @@ class SpaceMouse:
 
             data = self.interface.get_controller_state()
             gripper_action = 1.0 if data["grasp"] else -1.0
-            grip_vel = gripper_action
-            action[6] = grip_vel
+            if is_gripper:
+                # Keyboard macro is commanding the gripper; preserve it.
+                grip_vel = float(action[6])
+            else:
+                grip_vel = gripper_action
+                action[6] = grip_vel
 
             info_dict = create_info_dict(obs_dict, self._state, gripper_action, grip_vel)
             return action, info_dict

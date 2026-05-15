@@ -54,5 +54,8 @@ ARUCO_DICT = aruco.Dictionary_get(aruco.DICT_5X5_100)
 
 ubuntu_pro_token = ""
 
+##### POLICY SERVERS #####
+molmoact2_server_url = "https://herbal-send-ipod.ngrok-free.dev/act"
+
 ##### CODE VERSION #####
 code_version = "2.0"
