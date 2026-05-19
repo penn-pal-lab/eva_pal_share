@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -102,3 +103,52 @@ def project_camera_to_image(pos, intrinsics):
     pixel = intrinsics @ pos
     pixel = pixel / pixel[2]
     return pixel[:2]
+
+
+### Vector / Matrix helpers ###
+
+def unit_vector(data, axis=None, out=None):
+    """Return ndarray normalized by length (Euclidean norm) along axis."""
+    if out is None:
+        data = np.array(data, dtype=np.float32, copy=True)
+        if data.ndim == 1:
+            data /= math.sqrt(np.dot(data, data))
+            return data
+    else:
+        if out is not data:
+            out[:] = np.array(data, copy=False)
+        data = out
+    length = np.atleast_1d(np.sum(data * data, axis))
+    np.sqrt(length, length)
+    if axis is not None:
+        length = np.expand_dims(length, axis)
+    data /= length
+    if out is None:
+        return data
+
+
+def rotation_matrix(angle, direction, point=None):
+    """Return 4x4 matrix to rotate about an axis defined by point and direction."""
+    sina = math.sin(angle)
+    cosa = math.cos(angle)
+    direction = unit_vector(direction[:3])
+    R_mat = np.array(
+        ((cosa, 0.0, 0.0), (0.0, cosa, 0.0), (0.0, 0.0, cosa)),
+        dtype=np.float32,
+    )
+    R_mat += np.outer(direction, direction) * (1.0 - cosa)
+    direction *= sina
+    R_mat += np.array(
+        (
+            (0.0, -direction[2], direction[1]),
+            (direction[2], 0.0, -direction[0]),
+            (-direction[1], direction[0], 0.0),
+        ),
+        dtype=np.float32,
+    )
+    M = np.identity(4)
+    M[:3, :3] = R_mat
+    if point is not None:
+        point = np.array(point[:3], dtype=np.float32, copy=False)
+        M[:3, 3] = point - np.dot(R_mat, point)
+    return M
