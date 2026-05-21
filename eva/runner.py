@@ -18,6 +18,7 @@ from eva.controllers.replayer import Replayer
 from eva.controllers.pi0_policy import Pi0Policy
 from eva.controllers.human_pi0 import DemoDiffusionPolicy
 from eva.controllers.keyboard_pi0 import KeyboardPi0
+from eva.controllers.roboarena import RoboArenaController
 
 # Active Perception Series
 from eva.controllers.policy import Policy # currently fixed as avg pooling aawr policy
@@ -342,6 +343,8 @@ class Runner:
             self.controller = Replayer(**kwargs)
         elif controller == "pi0_policy":
             self.controller = Pi0Policy(**kwargs)
+        elif controller == "roboarena":
+            self.controller = RoboArenaController(**kwargs)
         elif controller == "demodiffusion_pi0":
             kwargs['on_switch_callback'] = update_action_spaces
             self.controller = DemoDiffusionPolicy(**kwargs)
