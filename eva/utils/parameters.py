@@ -9,11 +9,18 @@ robot_type = "fr3"  # 'panda' or 'fr3'
 robot_serial_number = ""
 
 
-##### POLICY SERVER #####
+##### POLICY SERVER (MolmoAct2) #####
+# name -> {url, norm_tag}. norm_tag=None omits the field (legacy LAN protocol);
+# the ngrok build requires "franka_droid". See README.md / CLAUDE.md for the
+# protocol. Edit URLs (e.g. a rotated ngrok tunnel) directly here.
 policy_server_ip = "10.102.245.84"
-# policy_server_ip = "172.16.0.42"
 policy_server_port = 8101
-molmoact2_server_url = f"http://{policy_server_ip}:{policy_server_port}/act"
+
+MOLMOACT2_ENDPOINTS = {
+    "lan":   {"url": f"http://{policy_server_ip}:{policy_server_port}/act", "norm_tag": None},
+    "ngrok": {"url": "https://herbal-send-ipod.ngrok-free.dev/act",         "norm_tag": "franka_droid"},
+}
+molmoact2_server_url = MOLMOACT2_ENDPOINTS["lan"]["url"]  # default for MolmoAct2Config
 
 ##### CAMERAS #####
 

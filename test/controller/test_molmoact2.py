@@ -199,8 +199,7 @@ def test_forward_holds_on_server_exception(molmo: MolmoAct2Policy) -> None:
     with patch(
         "eva.controllers.molmoact2.requests.post",
         side_effect=RuntimeError("connection refused"),
-    ), patch("eva.controllers.molmoact2.cv2.imwrite"), \
-       patch("eva.controllers.molmoact2.os.makedirs"):
+    ):
         action, _ = molmo.forward(make_obs())
     assert_action_pair((action, _), expected_dim=8)
     # Hold path -> no chunk was populated.
@@ -209,9 +208,7 @@ def test_forward_holds_on_server_exception(molmo: MolmoAct2Policy) -> None:
 
 def test_forward_holds_on_non_200(molmo: MolmoAct2Policy) -> None:
     fake_resp = MagicMock(status_code=500, text="boom")
-    with patch("eva.controllers.molmoact2.requests.post", return_value=fake_resp), \
-         patch("eva.controllers.molmoact2.cv2.imwrite"), \
-         patch("eva.controllers.molmoact2.os.makedirs"):
+    with patch("eva.controllers.molmoact2.requests.post", return_value=fake_resp):
         action, _ = molmo.forward(make_obs())
     assert_action_pair((action, _), expected_dim=8)
     assert molmo.pred_action_chunk is None
@@ -222,9 +219,7 @@ def test_forward_holds_on_bad_action_shape(molmo: MolmoAct2Policy) -> None:
     bad = np.zeros((4, 6), dtype=np.float32).tolist()
     fake_resp = MagicMock(status_code=200)
     fake_resp.json.return_value = {"actions": bad}
-    with patch("eva.controllers.molmoact2.requests.post", return_value=fake_resp), \
-         patch("eva.controllers.molmoact2.cv2.imwrite"), \
-         patch("eva.controllers.molmoact2.os.makedirs"):
+    with patch("eva.controllers.molmoact2.requests.post", return_value=fake_resp):
         action, _ = molmo.forward(make_obs())
     assert_action_pair((action, _), expected_dim=8)
     assert molmo.pred_action_chunk is None
@@ -241,9 +236,7 @@ def _fake_post_factory(chunk: np.ndarray):
 
 def test_forward_populates_chunk_and_query_count(molmo: MolmoAct2Policy) -> None:
     chunk = np.zeros((molmo.open_loop_horizon, 8), dtype=np.float32)
-    with patch("eva.controllers.molmoact2.requests.post", _fake_post_factory(chunk)), \
-         patch("eva.controllers.molmoact2.cv2.imwrite"), \
-         patch("eva.controllers.molmoact2.os.makedirs"):
+    with patch("eva.controllers.molmoact2.requests.post", _fake_post_factory(chunk)):
         molmo.forward(make_obs())
     assert molmo.pred_action_chunk is not None
     assert molmo.policy_query_count == 1
@@ -254,9 +247,7 @@ def test_forward_consumes_chunk_then_requeries_at_horizon(molmo: MolmoAct2Policy
     # open_loop_horizon=4 from the fixture config.
     chunk = np.zeros((molmo.open_loop_horizon, 8), dtype=np.float32)
     post = _fake_post_factory(chunk)
-    with patch("eva.controllers.molmoact2.requests.post", post), \
-         patch("eva.controllers.molmoact2.cv2.imwrite"), \
-         patch("eva.controllers.molmoact2.os.makedirs"):
+    with patch("eva.controllers.molmoact2.requests.post", post):
         # First `open_loop_horizon` forwards consume one chunk; the next one re-queries.
         for _ in range(molmo.open_loop_horizon):
             molmo.forward(make_obs())
@@ -273,9 +264,7 @@ def test_forward_clips_per_step_joint_delta_to_max_dq() -> None:
         (pol.open_loop_horizon, 1),
     )
     obs = make_obs(joint_positions=(0.0,) * 7)
-    with patch("eva.controllers.molmoact2.requests.post", _fake_post_factory(big_target)), \
-         patch("eva.controllers.molmoact2.cv2.imwrite"), \
-         patch("eva.controllers.molmoact2.os.makedirs"):
+    with patch("eva.controllers.molmoact2.requests.post", _fake_post_factory(big_target)):
         action, _ = pol.forward(obs)
     # Each joint should move by at most max_dq from 0.
     np.testing.assert_allclose(action[:7], np.full(7, 0.05), atol=1e-6)
@@ -296,9 +285,7 @@ def test_forward_ema_smoothing_blends_first_two_calls() -> None:
         MagicMock(status_code=200, **{"json.return_value": {"actions": zeros.tolist()}}),
         MagicMock(status_code=200, **{"json.return_value": {"actions": ones.tolist()}}),
     ])
-    with patch("eva.controllers.molmoact2.requests.post", post), \
-         patch("eva.controllers.molmoact2.cv2.imwrite"), \
-         patch("eva.controllers.molmoact2.os.makedirs"):
+    with patch("eva.controllers.molmoact2.requests.post", post):
         # First call: smoothed = raw = 0.
         pol.forward(obs)
         np.testing.assert_allclose(pol._q_target_smoothed, np.zeros(7))
@@ -314,9 +301,7 @@ def test_forward_clips_gripper_in_info_to_unit_range() -> None:
         np.concatenate([np.zeros(7, dtype=np.float32), [5.0]]),
         (pol.open_loop_horizon, 1),
     )
-    with patch("eva.controllers.molmoact2.requests.post", _fake_post_factory(chunk)), \
-         patch("eva.controllers.molmoact2.cv2.imwrite"), \
-         patch("eva.controllers.molmoact2.os.makedirs"):
+    with patch("eva.controllers.molmoact2.requests.post", _fake_post_factory(chunk)):
         _, info = pol.forward(make_obs())
     assert info["gripper_position"] == 1.0
 
@@ -344,3 +329,80 @@ def test_query_server_raises_on_missing_actions_key(molmo: MolmoAct2Policy) -> N
     with patch("eva.controllers.molmoact2.requests.post", return_value=fake_resp):
         with pytest.raises(RuntimeError, match="Bad response keys"):
             molmo._query_server(img, img, state)
+
+
+# ---------------------------------------------------------------------------
+# server_url override + endpoint resolution
+# ---------------------------------------------------------------------------
+def test_endpoint_kwarg_overrides_url_and_norm_tag() -> None:
+    pol = MolmoAct2Policy(
+        _cfg(server_url="http://default.example/act", norm_tag=None),
+        endpoint={"url": "https://override.example/act", "norm_tag": "franka_droid"},
+    )
+    assert pol.cfg.server_url == "https://override.example/act"
+    assert pol.cfg.norm_tag == "franka_droid"
+
+
+def test_default_norm_tag_is_none_for_legacy_lan_compat() -> None:
+    """LAN server rejects unknown fields; default must not include norm_tag."""
+    pol = MolmoAct2Policy(_cfg())
+    assert pol.cfg.norm_tag is None
+
+
+def test_payload_omits_norm_tag_when_none() -> None:
+    pol = MolmoAct2Policy(_cfg(norm_tag=None))
+    fake_resp = MagicMock(status_code=200)
+    fake_resp.json.return_value = {"actions": np.zeros((1, 8)).tolist()}
+    img = np.zeros((180, 320, 3), dtype=np.uint8)
+    state = np.zeros(8, dtype=np.float32)
+    with patch("eva.controllers.molmoact2.requests.post", return_value=fake_resp), \
+         patch("eva.controllers.molmoact2.json_numpy.dumps", side_effect=lambda d: d) as dumps:
+        pol._query_server(img, img, state)
+    assert "norm_tag" not in dumps.call_args[0][0]
+
+
+def test_payload_includes_norm_tag_when_set() -> None:
+    pol = MolmoAct2Policy(_cfg(norm_tag="franka_droid"))
+    fake_resp = MagicMock(status_code=200)
+    fake_resp.json.return_value = {"actions": np.zeros((1, 8)).tolist()}
+    img = np.zeros((180, 320, 3), dtype=np.uint8)
+    state = np.zeros(8, dtype=np.float32)
+    with patch("eva.controllers.molmoact2.requests.post", return_value=fake_resp), \
+         patch("eva.controllers.molmoact2.json_numpy.dumps", side_effect=lambda d: d) as dumps:
+        pol._query_server(img, img, state)
+    assert dumps.call_args[0][0]["norm_tag"] == "franka_droid"
+
+
+def test_default_construction_is_isolated_per_instance() -> None:
+    """Regression: mutable default arg used to share one cfg across instances."""
+    a = MolmoAct2Policy()
+    b = MolmoAct2Policy()
+    assert a.cfg is not b.cfg, "each policy must get its own MolmoAct2Config"
+
+
+# ---------------------------------------------------------------------------
+# Endpoint resolution
+# ---------------------------------------------------------------------------
+def test_resolve_endpoint_returns_dict() -> None:
+    from eva.controllers.molmoact2 import resolve_molmoact2_endpoint
+    ep = resolve_molmoact2_endpoint("lan")
+    assert set(ep) == {"url", "norm_tag"}
+
+
+def test_lan_preset_has_no_norm_tag() -> None:
+    """LAN compat: built-in 'lan' must default to norm_tag=None."""
+    from eva.utils.parameters import MOLMOACT2_ENDPOINTS
+    assert MOLMOACT2_ENDPOINTS["lan"]["norm_tag"] is None
+
+
+def test_resolve_endpoint_raw_url_has_no_norm_tag() -> None:
+    from eva.controllers.molmoact2 import resolve_molmoact2_endpoint
+    ep = resolve_molmoact2_endpoint("https://abc.ngrok-free.app/act")
+    assert ep["url"] == "https://abc.ngrok-free.app/act"
+    assert ep["norm_tag"] is None
+
+
+def test_resolve_endpoint_rejects_unknown() -> None:
+    from eva.controllers.molmoact2 import resolve_molmoact2_endpoint
+    with pytest.raises(ValueError, match="Unknown endpoint"):
+        resolve_molmoact2_endpoint("not-a-preset-and-not-a-url")

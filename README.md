@@ -143,18 +143,26 @@ Controls: `=` switch between Pi0 and SpaceMouse, `space` toggle movement, `y` su
 
 #### MolmoAct2
 
-`scripts/run_molmoact2.py` runs the MolmoAct2 VLA policy via remote policy server
+`scripts/run_molmoact2.py` runs the MolmoAct2 VLA policy via a remote policy server.
 
 ```bash
-# Run N trajectories back-to-back
+# LAN FastAPI box (default)
 python scripts/run_molmoact2.py -n 10
+
+# Named preset (e.g. the ngrok tunnel defined in MOLMOACT2_ENDPOINTS)
+python scripts/run_molmoact2.py -n 10 --server ngrok
+
+# Ad-hoc raw URL
+python scripts/run_molmoact2.py -n 10 --server https://abc.ngrok-free.app/act
 ```
 
 **Action interface:** `action_space = joint_position` (q1..q7) + `gripper_action_space = position` (gripper in `[0, 1]`). The server returns absolute joint targets; the controller applies EMA smoothing and clips per-step joint deltas (`max_dq = 0.15` rad) for safety.
 
 **Cameras:** uses the LEFT view of two ZEDs — external = `varied_camera_1_id` (shoulder ZED 2), wrist = `hand_camera_id` (ZED Mini). Images are resized to 320x180 before being sent to the server.
 
-**Server:** set the endpoint via `molmoact2_server_url` in `eva/utils/parameters.py`. Both `MolmoAct2Config.server_url` and the launcher script read from there.
+**Server endpoints.** Presets live in the `MOLMOACT2_ENDPOINTS` dict in `eva/utils/parameters.py` — `name -> {"url", "norm_tag"}`. Edit URLs directly there (including a rotated ngrok tunnel); there is no separate config file. `--server` accepts a preset name or a raw `http(s)://` URL.
+
+**Two server protocols.** The LAN FastAPI box uses an implicit default normalization tag, so the client must **not** send a `norm_tag` field (`norm_tag: None`). The newer ngrok-served build **requires** `norm_tag: "franka_droid"`. Each endpoint carries its own `norm_tag`, so a single `--server` flag picks both URL and protocol.
 
 
 ### Development

@@ -8,12 +8,15 @@ Action interface:
   - gripper_action_space = "position"        (gripper in [0, 1])
 
 Server protocol (HTTP + json_numpy):
-  POST {MOLMOACT2_URL}/act with {external_cam, wrist_cam, state(8,), instruction, timestamp}
+  POST {MOLMOACT2_URL}/act with {external_cam, wrist_cam, state(8,), instruction,
+    timestamp, norm_tag}
   Returns {"actions": (N, 8)} of ABSOLUTE joint positions [q1..q7, gripper].
+  `norm_tag` selects which dataset's action normalization stats to apply
+  (e.g. "franka_droid"). The server rejects unknown tags.
 """
-import os
 import time
 from dataclasses import dataclass
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -24,6 +27,18 @@ from eva.utils.misc_utils import create_info_dict
 import eva.utils.parameters as params
 
 json_numpy.patch()
+
+
+def resolve_molmoact2_endpoint(spec: str) -> dict:
+    """Preset name or raw http(s):// URL -> {"url", "norm_tag"} dict."""
+    if spec in params.MOLMOACT2_ENDPOINTS:
+        return params.MOLMOACT2_ENDPOINTS[spec]
+    if spec.startswith(("http://", "https://")):
+        return {"url": spec, "norm_tag": None}
+    raise ValueError(
+        f"Unknown endpoint {spec!r}. Known: {sorted(params.MOLMOACT2_ENDPOINTS)}. "
+        f"Pass a full http(s):// URL or add it to MOLMOACT2_ENDPOINTS in parameters.py."
+    )
 
 
 @dataclass
@@ -40,6 +55,11 @@ class MolmoAct2Config:
     input_width: int = 320
     input_height: int = 180
 
+    # Action-normalization tag the server should use. None = do not send the
+    # field at all (matches the original LAN protocol). The newer ngrok server
+    # requires "franka_droid".
+    norm_tag: Optional[str] = None
+
     # Open-loop chunking
     open_loop_horizon: int = 15
 
@@ -53,8 +73,14 @@ class MolmoAct2Config:
 
 
 class MolmoAct2Policy:
-    def __init__(self, config: MolmoAct2Config = MolmoAct2Config()):
-        print(f"MolmoAct2 init -> {config.server_url}")
+    def __init__(self, config: MolmoAct2Config = None, *, endpoint: dict = None):
+        # Build a fresh config per instance to avoid the mutable-default trap.
+        if config is None:
+            config = MolmoAct2Config()
+        if endpoint is not None:
+            config.server_url = endpoint["url"]
+            config.norm_tag = endpoint["norm_tag"]
+        print(f"MolmoAct2 init -> url={config.server_url}  norm_tag={config.norm_tag!r}")
         self.cfg = config
 
         self.action_space = "joint_position"
@@ -160,6 +186,11 @@ class MolmoAct2Policy:
             "instruction": self.current_instruction,
             "state": state_8d,
         }
+        # Newer servers (e.g. the ngrok build) require an explicit normalization
+        # tag; the original LAN server has its own implicit default and may
+        # reject unknown fields, so omit when norm_tag is None.
+        if self.cfg.norm_tag is not None:
+            payload["norm_tag"] = self.cfg.norm_tag
         serialized = json_numpy.dumps(payload)
         resp = requests.post(
             self.cfg.server_url,
@@ -211,13 +242,6 @@ class MolmoAct2Policy:
             if wri_rgb is None:
                 print(f"[MolmoAct2] Wrist camera (SN {self.cfg.wrist_camera_id}) image missing")
                 return self._hold_action(joint_position, gripper_position), info_dict
-
-            # Save first-step debug images (once per session)
-            if self.policy_query_count == 0:
-                os.makedirs("debug", exist_ok=True)
-                tag = self.current_instruction.replace(" ", "_").replace("/", "_")
-                cv2.imwrite(f"debug/molmoact2_{tag}_external.jpg", ext_rgb[..., ::-1])
-                cv2.imwrite(f"debug/molmoact2_{tag}_wrist.jpg", wri_rgb[..., ::-1])
 
             state_8d = np.concatenate([joint_position, [gripper_position]])
             t0 = time.time()

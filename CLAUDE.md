@@ -12,14 +12,20 @@ A policy controller plugs into `Runner.set_controller` with a string name and is
 
 ## MolmoAct2 policy
 
-- Script: `python scripts/run_molmoact2.py -n <N>` — runs `N` trajectories, prompts for a new instruction each run (Enter keeps the previous one), and waits for `y`/`n` after each rollout.
-- Controller name: `"molmoact2"` (in `Runner.set_controller`).
+- Script: `python scripts/run_molmoact2.py -n <N> [-s lan|ngrok|<url>]`.
+- Controller name: `"molmoact2"` (`Runner.set_controller`). Construct with `endpoint={"url": ..., "norm_tag": ...}`.
 - Action space: `joint_position` (q1..q7) + gripper `position` in `[0, 1]`. Server returns absolute joint targets; controller applies EMA smoothing (`ema_alpha=0.7`) and clips per-step joint delta (`max_dq=0.15` rad).
 - Cameras: LEFT view only — external = `params.varied_camera_1_id` (ZED 2 shoulder), wrist = `params.hand_camera_id` (ZED Mini wrist). Images resized to 320x180 before send.
 - Open-loop chunk: 15 actions per server query (`open_loop_horizon`).
-- Server protocol: HTTP `POST {server_url}` with `json_numpy` payload `{external_cam, wrist_cam, state(8,), instruction, timestamp}`, response `{"actions": (N, 8)}`.
-- Server URL: single source of truth is `molmoact2_server_url` in `eva/utils/parameters.py`. The controller default (`MolmoAct2Config.server_url`) and the launcher script both import it.
-- First-step debug images are written to `debug/molmoact2_<instruction>_{external,wrist}.jpg`.
+
+### Endpoints + server protocol
+
+- Endpoints are a plain dict `MOLMOACT2_ENDPOINTS` in `eva/utils/parameters.py` (data only): `name -> {"url", "norm_tag"}`. Edit URLs directly there (including a rotated ngrok tunnel) — there is no separate config file. Built-in: `lan` + `ngrok`.
+- Each endpoint pairs a URL with a `norm_tag`. **Two server protocols coexist**:
+  - **Legacy LAN**: `norm_tag=None` → field is omitted from the payload entirely. The LAN FastAPI server uses its own implicit default and may reject unknown fields, so this is required.
+  - **New (ngrok build)**: requires `norm_tag="franka_droid"`; rejects unknown tags including the old `"droid"`.
+- `resolve_molmoact2_endpoint(spec)` in `eva/controllers/molmoact2.py` maps a preset name or raw `http(s)://` URL to an `{"url", "norm_tag"}` dict; passed to `runner.set_controller("molmoact2", endpoint=...)` → `MolmoAct2Policy.__init__`.
+- Wire-level payload: `POST {url}` with `json_numpy` body `{external_cam, wrist_cam, state(8,), instruction, timestamp[, norm_tag]}`; response `{"actions": (N, 8)}`.
 
 ## Conventions
 
