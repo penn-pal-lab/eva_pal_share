@@ -21,6 +21,7 @@ openpi/
 .cursor/
 .cursorignore/
 .claude/
+.env
 # Python
 
 *.py[cod]

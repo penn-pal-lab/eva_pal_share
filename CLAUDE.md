@@ -5,9 +5,10 @@ closed-loop eval). It is consumed by [`allenai/molmoact2`](https://github.com/al
 the `EVA_DROID` git submodule and pairs with that repo's `examples/droid/host_server_droid.py`.
 
 **Config is secret-free:** machine-specific values (camera serials, IPs, server URLs, sudo
-password, cluster/scp targets, data dirs) live in `eva/utils/parameters.py` as
-`os.environ.get(VAR, <placeholder>)`. Fill them in via env vars or edit the placeholders locally —
-never commit real values. See the Configuration table in `README.md`.
+password, the optional Ably timer key, cluster/scp targets, data dirs) live in
+`eva/utils/parameters.py` as `os.environ.get(VAR, <placeholder>)`. Fill them in via env vars or
+edit the placeholders locally — never commit real values. `eva/remote_timer.py` reads its key from
+`params.ably_api_key`. See the Configuration table in `README.md`.
 
 ## Repo layout
 - `eva/` — Python package: env, robot, controllers, utils.

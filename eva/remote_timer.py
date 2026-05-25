@@ -1,9 +1,10 @@
-import os
 import time
 
-# Optional remote timer (https://ably.com). Set your own key in the environment:
-#   export ABLY_API_KEY="<your-ably-key>"
-ABLY_API_KEY = os.environ.get("ABLY_API_KEY", "")
+import eva.utils.parameters as params
+
+# Optional remote timer (https://ably.com). Configured centrally in parameters.py
+# (params.ably_api_key), which reads the ABLY_API_KEY env var by default.
+ABLY_API_KEY = params.ably_api_key
 
 class RemoteTimer:
     """Publishes timer events to an Ably channel. If ABLY_API_KEY is unset (or

@@ -2,8 +2,9 @@ import os
 
 from cv2 import aruco
 
-##### ROBOT #####
-# 172.16.0.x are the standard DROID NUC/robot IPs; override via env if your setup differs.
+##### ROBOT ######
+# you can set set these info as constant value for dev. 
+# 172.16.0.x are the standard DROID NUC/robot IPs; override via env iif your setup differs.
 nuc_ip = os.environ.get("NUC_IP", "172.16.0.4")
 robot_ip = os.environ.get("ROBOT_IP", "172.16.0.2")
 laptop_ip = os.environ.get("LAPTOP_IP", "127.0.0.1")
@@ -26,6 +27,12 @@ MOLMOACT2_ENDPOINTS = {
     "ngrok": {"url": os.environ.get("MOLMOACT2_NGROK_URL", "https://YOUR-TUNNEL.ngrok-free.dev/act"), "norm_tag": "franka_droid"},
 }
 molmoact2_server_url = MOLMOACT2_ENDPOINTS["lan"]["url"]  # default for MolmoAct2Config
+
+##### REMOTE TIMER (optional) #####
+# Ably (https://ably.com) key for the optional remote timer (eva/remote_timer.py).
+# Leave empty to disable the timer. Set your own key via the ABLY_API_KEY env var
+# (recommended) or paste it here for local dev — never commit a real key.
+ably_api_key = os.environ.get("ABLY_API_KEY", "")
 
 ##### CAMERAS #####
 # ZED camera serial numbers — fill in your own (find them with ZED_Explorer or

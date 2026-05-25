@@ -36,7 +36,7 @@ No secrets or machine-specific values are committed. Fill in your own setup in `
 | `MOLMOACT2_NGROK_URL` | MolmoAct2 tunnel URL (the `ngrok` preset) | placeholder |
 | `EVA_CLUSTER_DEST` / `EVA_CLUSTER_HOST` | `scp` target for shipping data to a training cluster | placeholder |
 | `EVA_HUMAN_DATA` | local human-demo data directory | `~/eva_data/human_data` |
-| `ABLY_API_KEY` | optional remote timer ([Ably](https://ably.com)) | unset (timer disabled) |
+| `ABLY_API_KEY` | optional remote timer ([Ably](https://ably.com)); also exposed as `ably_api_key` in `parameters.py` | unset (timer disabled) |
 
 ## Usage
 
