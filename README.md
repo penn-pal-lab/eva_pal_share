@@ -1,5 +1,10 @@
 # Eva Franka Infrastructure
 
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/1e36909c-62d8-4fd1-aa3d-333b98d5065e" width="480" />
+</div>
+
 Eva is a simple, modular, and extendable Franka infrastructure built on [DROID](https://github.com/droid-dataset/droid). Key features include:
 - Modular design with atomic components, making it configurable and extendable.
 - Lightweight and simple interface via the terminal and a camera feed window.
@@ -59,8 +64,6 @@ Eva supports the following controllers:
 - 
 #### Keyboard
 
-#### Gello
-- TODO: add Gello support
 
 #### 3Dconnexion SpaceMouse
 
@@ -87,6 +90,15 @@ Eva supports the following controllers:
 | `1` / `2` | Tilt up / down |
 | `5` / `6` | Roll CCW / CW |
 | `7` / `8` | Rotate left / right |
+| `k` | Raise gripper (+Z) |
+| `j` | Close gripper |
+
+**Runner-level keys** (handled by `eva/runner.py`, work with any controller):
+| Key | Action |
+|---|---|
+| `l` | Cycle motion step scale (0.5x / 1.0x / 2.0x). Current scale is rendered on the camera-feed window and applied to any controller exposing `set_step_scale`. |
+| `i` | Prompt in the terminal for a new task instruction; sent to the controller via `set_instruction` if supported. |
+| `o` | Cycle overlay mode. |
 
 **Tuning parameters with the teleop script:**
 
@@ -127,6 +139,24 @@ python scripts/collect_pi0_spacemouse.py --n 20
 
 Controls: `=` switch between Pi0 and SpaceMouse, `space` toggle movement, `y` success, `n` failure.
 
+### Policies
+
+#### MolmoAct2
+
+`scripts/run_molmoact2.py` runs the MolmoAct2 VLA policy via remote policy server
+
+```bash
+# Run N trajectories back-to-back
+python scripts/run_molmoact2.py -n 10
+```
+
+**Action interface:** `action_space = joint_position` (q1..q7) + `gripper_action_space = position` (gripper in `[0, 1]`). The server returns absolute joint targets; the controller applies EMA smoothing and clips per-step joint deltas (`max_dq = 0.15` rad) for safety.
+
+**Cameras:** uses the LEFT view of two ZEDs — external = `varied_camera_1_id` (shoulder ZED 2), wrist = `hand_camera_id` (ZED Mini). Images are resized to 320x180 before being sent to the server.
+
+**Server:** set the endpoint via `molmoact2_server_url` in `eva/utils/parameters.py`. Both `MolmoAct2Config.server_url` and the launcher script read from there.
+
+
 ### Development
 
 Code development should be entirely done on the laptop, and to sync the codebase with the NUC, run `./sync_infra.sh`. Remember to restart the server or runner if code changes affect them.
@@ -139,4 +169,5 @@ To train model on data collected from the Franka laptop, run the following comma
 ```bash
 ./send_data_to_cluster.sh /path/to/data
 ```
+
 

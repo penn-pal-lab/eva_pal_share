@@ -8,10 +8,17 @@ sudo_password = 'robotlearning'
 robot_type = "fr3"  # 'panda' or 'fr3'
 robot_serial_number = ""
 
+
+##### POLICY SERVER #####
+policy_server_ip = "10.102.245.84"
+# policy_server_ip = "172.16.0.42"
+policy_server_port = 8101
+molmoact2_server_url = f"http://{policy_server_ip}:{policy_server_port}/act"
+
 ##### CAMERAS #####
 
-hand_camera_id = '14436910'
-# hand_camera_id = '15512737'
+# hand_camera_id = '14436910'
+hand_camera_id = '15512737'
 # varied_camera_1_id = '25455306'
 #varied_camera_1_id = '26368109'
 # varied_camera_1_id = '27085680'
@@ -44,6 +51,19 @@ def get_camera_type(cam_id):
     type_str = camera_type_to_string_dict[type_int]
     return type_str
 
+
+##### SPACEMOUSE #####
+SPACEMOUSE_OVERRIDE_CONFIG = True
+spacemouse_config = {
+    "max_lin_vel": 5.0,
+    "max_rot_vel": 5.0,
+    "max_gripper_vel": 5.0,
+    "pos_sensitivity": 8.0,
+    "rot_sensitivity": 8.0,
+    "action_scale": 0.1,
+    "deadzone": 0.05,
+    "smoothing": 0.3
+}
 
 ##### CHARUCO BOARD #####
 CHARUCOBOARD_ROWCOUNT = 9

@@ -18,6 +18,7 @@ from eva.controllers.replayer import Replayer
 from eva.controllers.pi0_policy import Pi0Policy
 from eva.controllers.human_pi0 import DemoDiffusionPolicy
 from eva.controllers.keyboard_pi0 import KeyboardPi0
+from eva.controllers.molmoact2 import MolmoAct2Policy
 
 # Active Perception Series
 from eva.controllers.policy import Policy # currently fixed as avg pooling aawr policy
@@ -30,7 +31,14 @@ from eva.controllers.replay_pi0 import ReplayPi0Controller
 from eva.utils.trajectory_utils import run_trajectory
 from eva.utils.calibration_utils import calibrate_camera, check_calibration, check_calibration_info, save_calibration_info
 from eva.utils.misc_utils import data_dir, run_threaded_command, print_datadict_tree
-from eva.utils.parameters import hand_camera_id, code_version, robot_serial_number, robot_type
+from eva.utils.parameters import (
+    hand_camera_id,
+    code_version,
+    robot_serial_number,
+    robot_type,
+    varied_camera_1_id,
+    varied_camera_2_id,
+)
 
 from eva.utils.misc_utils import yellow_print
 
@@ -67,7 +75,69 @@ class Runner:
         self.save_data = save_data
         self.post_process = post_process
 
+        # Keyboard HUD state
+        self.step_sizes = [0.5, 1.0, 2.0]
+        self.step_size_idx = 1
+        self._apply_step_scale_to_controller()
+        self._instruction_input_active = False
+
         self.display_camera_feed()
+
+    @property
+    def step_scale(self):
+        return self.step_sizes[self.step_size_idx]
+
+    def _apply_step_scale_to_controller(self):
+        if self.controller is not None and hasattr(self.controller, "set_step_scale"):
+            self.controller.set_step_scale(self.step_scale)
+
+    def _cycle_step_size(self):
+        self.step_size_idx = (self.step_size_idx + 1) % len(self.step_sizes)
+        self._apply_step_scale_to_controller()
+        yellow_print(f"[runner] step scale -> {self.step_scale:.2f}x")
+
+    def _prompt_instruction_thread(self):
+        try:
+            current = getattr(self.controller, "current_instruction", "")
+            text = input(f"\n[runner] Enter new instruction [{current}]: ").strip()
+            if text:
+                if self.set_controller_instruction(text):
+                    yellow_print(f"[runner] instruction set: {text}")
+                else:
+                    yellow_print("[runner] controller does not support set_instruction")
+        finally:
+            self._instruction_input_active = False
+
+    def _hud_t_step(self):
+        """Read the trajectory step counter from the controller, if exposed."""
+        state = getattr(self.controller, "_state", None)
+        if isinstance(state, dict):
+            return state.get("t_step", 0)
+        return 0
+
+    def _hud_external_camera_label(self):
+        """Return 'left' / 'right' / '' for the controller's external camera.
+
+        Detection order:
+          1. controller.external_camera (Pi0-style: "left"/"right")
+          2. controller.cfg.external_camera_id mapped via varied_camera_{1,2}_id
+        """
+        c = self.controller
+        if c is None:
+            return ""
+        label = getattr(c, "external_camera", None)
+        if label in ("left", "right"):
+            return label
+        cam_id = getattr(c, "external_camera_id", None)
+        if cam_id is None:
+            cfg = getattr(c, "cfg", None)
+            if cfg is not None:
+                cam_id = getattr(cfg, "external_camera_id", None)
+        if cam_id == varied_camera_1_id:
+            return "left"
+        if cam_id == varied_camera_2_id:
+            return "right"
+        return ""
 
     def reset_robot(self):
         self.env._robot.establish_connection() # Why do this?
@@ -243,13 +313,55 @@ class Runner:
 
                 cols = [np.vstack(self.camera_feed[i:i+2]) for i in range(0, len(self.camera_feed), 2)]
                 grid = np.hstack(cols)
-                cv2.imshow("eva", cv2.cvtColor(cv2.resize(grid, (0, 0), fx=0.5, fy=0.5), cv2.COLOR_RGB2BGR))
+                display_img = cv2.cvtColor(
+                    cv2.resize(grid, (0, 0), fx=0.5, fy=0.5),
+                    cv2.COLOR_RGB2BGR,
+                )
+
+                # HUD overlay (BGR yellow): policy / scale / instruction / step counter / ext camera
+                hud_lines = []
+                if self.controller is not None and hasattr(self.controller, "get_name"):
+                    try:
+                        hud_lines.append(f"policy: {self.controller.get_name()}")
+                    except Exception:
+                        pass
+                hud_lines.append(f"scale: {self.step_scale:.2f}x  (l to cycle)")
+                if hasattr(self.controller, "current_instruction"):
+                    instr = (self.controller.current_instruction or "")[:80]
+                    if instr:
+                        hud_lines.append(f"instr: {instr}")
+                hud_lines.append(f"step: {self._hud_t_step()}")
+                ext_label = self._hud_external_camera_label()
+                if ext_label:
+                    hud_lines.append(f"ext: {ext_label}")
+
+                y = 30
+                for line in hud_lines:
+                    cv2.putText(
+                        display_img, line, (10, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2,
+                    )
+                    y += 28
+
+                cv2.imshow("eva", display_img)
 
                 key = cv2.waitKey(1) & 0xFF
-                if self.controller is not None and key != 255:
-                    self.controller.register_key(key)
+                if key != 255:
+                    # Runner-owned keys (work for any controller).
                     if key == ord('o'):
                         self.overlay_mode = (self.overlay_mode + 1) % 3
+                    elif key == ord('l'):
+                        self._cycle_step_size()
+                    elif key == ord('i'):
+                        if not self._instruction_input_active:
+                            self._instruction_input_active = True
+                            threading.Thread(
+                                target=self._prompt_instruction_thread,
+                                daemon=True,
+                            ).start()
+                    elif self.controller is not None:
+                        # Everything else (w/s/a/d/1/2/5/6/7/8/j/k/y/n/space ...) is a controller key.
+                        self.controller.register_key(key)
 
             cv2.destroyAllWindows()
         self.display_thread = run_threaded_command(display_thread)
@@ -342,6 +454,8 @@ class Runner:
             self.controller = Replayer(**kwargs)
         elif controller == "pi0_policy":
             self.controller = Pi0Policy(**kwargs)
+        elif controller == "molmoact2":
+            self.controller = MolmoAct2Policy(**kwargs)
         elif controller == "demodiffusion_pi0":
             kwargs['on_switch_callback'] = update_action_spaces
             self.controller = DemoDiffusionPolicy(**kwargs)
@@ -365,6 +479,10 @@ class Runner:
         # Pass env to controller if it needs robot access (e.g., for IK/action conversion)
         if hasattr(self.controller, 'set_env'):
             self.controller.set_env(self.env)
+
+        # Re-apply current step scale to the new controller (no-op if unsupported)
+        if hasattr(self, "step_sizes"):
+            self._apply_step_scale_to_controller()
 
         self.env.set_action_space(self.controller.action_space)
         self.env.set_gripper_action_space(self.controller.gripper_action_space)
