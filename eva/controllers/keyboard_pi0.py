@@ -20,7 +20,7 @@ Version:
 class KeyboardPi0Config:
     # PI0 config
     init_instruction: str = "find the pineapple and pick it up"
-    remote_host: str = "10.103.171.159"
+    remote_host: str = "127.0.0.1"
     remote_port: int = 8000
     action_space: str = "joint_velocity"
     gripper_action_space: str = "position"

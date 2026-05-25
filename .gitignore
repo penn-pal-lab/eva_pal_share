@@ -20,6 +20,7 @@ openpi/
 
 .cursor/
 .cursorignore/
+.claude/
 # Python
 
 *.py[cod]

@@ -83,11 +83,15 @@ eva = { path = ".", editable = true }
 # ──────────────────────── tasks ─────────────────────────────────
 [tasks]
 
-# Install local editable packages (run once after `pixi install`)
+# Install local editable packages (run once after `pixi install`).
+# Clone these alongside this repo (default: under $HOME) or override the paths via env vars:
+#   git clone https://github.com/Physical-Intelligence/openpi   (provides openpi-client)
+#   git clone https://github.com/rail-berkeley/oculus_reader
+#   git clone https://github.com/droid-dataset/droid
 install-local = """
-pip install -e /home/franka/openpi-main/packages/openpi-client && \
-pip install -e /home/franka/oculus_reader && \
-pip install -e /home/franka/droid
+pip install -e ${OPENPI_CLIENT_PATH:-$HOME/openpi-main/packages/openpi-client} && \
+pip install -e ${OCULUS_READER_PATH:-$HOME/oculus_reader} && \
+pip install -e ${DROID_PATH:-$HOME/droid}
 """
 
 # Evaluation scripts

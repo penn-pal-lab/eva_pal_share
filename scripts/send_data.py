@@ -14,8 +14,10 @@ def send_data(source, destination):
         elif source == "latest_image":
             source = get_latest_image()
 
+    # Set EVA_CLUSTER_HOST to your training cluster (e.g. user@host); destination is a remote path.
+    cluster_host = os.environ.get("EVA_CLUSTER_HOST", "user@cluster.example.com")
     subprocess.run([
-        "scp", "-r", source, f"exx@10.103.171.159:{destination}"
+        "scp", "-r", source, f"{cluster_host}:{destination}"
     ])
     pass
 

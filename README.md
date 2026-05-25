@@ -1,17 +1,42 @@
-# Eva Franka Infrastructure
-
+# Eva — Franka DROID inference stack for MolmoAct2
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/1e36909c-62d8-4fd1-aa3d-333b98d5065e" width="480" />
 </div>
 
-Eva is a simple, modular, and extendable Franka infrastructure built on [DROID](https://github.com/droid-dataset/droid). Key features include:
+Eva is a simple, modular, and extendable Franka infrastructure built on [DROID](https://github.com/droid-dataset/droid). It is the **Franka DROID platform inference/eval stack** for [MolmoAct2](https://github.com/allenai/molmoact2): teleoperation, data collection, and the MolmoAct2 closed-loop eval controller. It is the client that pairs with the MolmoAct2 host server in [`examples/droid/host_server_droid.py`](https://github.com/allenai/molmoact2/tree/main/examples/droid).
+
+Key features:
 - Modular design with atomic components, making it configurable and extendable.
 - Lightweight and simple interface via the terminal and a camera feed window.
 - Clean and organized code, streamlining future development.
 
+> This repo is consumed by `allenai/molmoact2` as the `EVA_DROID` git submodule. To work on it standalone, clone it directly and follow the steps below.
+
 ## Installation
-The DROID software and hardware setup form the foundation for Eva. Please install them following the instructions [here](https://droid-dataset.github.io/droid/).
+
+1. **DROID base.** The DROID software/hardware setup is the foundation for Eva. Install it following the instructions [here](https://droid-dataset.github.io/droid/).
+2. **Environment.** This repo uses [pixi](https://pixi.sh):
+   ```bash
+   pixi install
+   pixi run install-local   # editable installs of openpi-client, oculus_reader, droid
+   ```
+   `install-local` expects `openpi-main`, `oculus_reader`, and `droid` under `$HOME` (override with `OPENPI_CLIENT_PATH`, `OCULUS_READER_PATH`, `DROID_PATH`). It also needs the [ZED SDK](https://www.stereolabs.com/developers/) + `pyzed`, and [Polymetis](https://facebookresearch.github.io/fairo/polymetis/) on the NUC.
+
+## Configuration
+
+No secrets or machine-specific values are committed. Fill in your own setup in `eva/utils/parameters.py` or via environment variables:
+
+| Variable | Used for | Default |
+|---|---|---|
+| `HAND_CAMERA_ID`, `VARIED_CAMERA_1_ID`, `VARIED_CAMERA_2_ID` | ZED camera serial numbers (find via `ZED_Explorer`) | placeholder serials |
+| `NUC_IP`, `ROBOT_IP` | Franka NUC / robot IPs | `172.16.0.4` / `172.16.0.2` (DROID defaults) |
+| `EVA_SUDO_PASSWORD` | sudo password used by the robot launcher | empty |
+| `POLICY_SERVER_IP`, `POLICY_SERVER_PORT` | MolmoAct2 LAN host server | `127.0.0.1` / `8101` |
+| `MOLMOACT2_NGROK_URL` | MolmoAct2 tunnel URL (the `ngrok` preset) | placeholder |
+| `EVA_CLUSTER_DEST` / `EVA_CLUSTER_HOST` | `scp` target for shipping data to a training cluster | placeholder |
+| `EVA_HUMAN_DATA` | local human-demo data directory | `~/eva_data/human_data` |
+| `ABLY_API_KEY` | optional remote timer ([Ably](https://ably.com)) | unset (timer disabled) |
 
 ## Usage
 
@@ -169,7 +194,7 @@ python scripts/run_molmoact2.py -n 10 --server https://abc.ngrok-free.app/act
 
 Code development should be entirely done on the laptop, and to sync the codebase with the NUC, run `./sync_infra.sh`. Remember to restart the server or runner if code changes affect them.
 
-If you are using Eva and plan to make significant changes, **please work in a copy of this directory** (eg, `eva_wliang`).
+If you are using Eva and plan to make significant changes, **please work in a copy of this directory** (eg, `eva_<yourname>`).
 
 ### Data Transfer between Franka Laptop and GPU Cluster
 

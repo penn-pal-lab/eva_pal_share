@@ -17,7 +17,7 @@ import numpy as np
 from eva.utils.geometry_utils import quat_to_euler, quat_to_rmat
 
 
-BASE_PATH = '/home/franka/eva_tony/human_data'
+BASE_PATH = os.environ.get("EVA_HUMAN_DATA", os.path.expanduser("~/eva_data/human_data"))
 GRIPPER_OFFSET = np.array([0, 0, 0.062])  # Offset from wrist to gripper tip
 
 

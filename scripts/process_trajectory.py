@@ -148,10 +148,10 @@ if __name__ == "__main__":
     # check if path is inidividual directory by checking if trajectory.h5 exists directly under it
     if path is not None and path.is_dir() and not os.path.exists(os.path.join(path, "trajectory.h5")):
         process_data_dir(path)
-        # scp to exx@10.103.171.159
+        # scp to the training cluster (set EVA_CLUSTER_DEST, e.g. user@host:/path/to/data/)
         import subprocess
         source_path = path
-        dest_path = "exx@10.103.171.159:/home/exx/Projects/vlm_trajectory_wliang/data/auto_demos/"
+        dest_path = os.environ.get("EVA_CLUSTER_DEST", "user@cluster.example.com:/path/to/data/")
         subprocess.run(["scp", "-r", source_path, dest_path],
                             check=True,
                             stdout=subprocess.PIPE,

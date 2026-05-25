@@ -1,6 +1,7 @@
-YOUR_NAME=chris
+YOUR_NAME=yourname
+SRC=eva
 # Copy the repo excluding gitignored files
-rsync -av --exclude-from=eva_tony/.gitignore eva_tony/ eva_${YOUR_NAME}/
+rsync -av --exclude-from=${SRC}/.gitignore ${SRC}/ eva_${YOUR_NAME}/
 
 # Then replace the .git directory
 rm -rf eva_${YOUR_NAME}/.git

@@ -250,7 +250,7 @@ def main():
     
     # Generate output path if not provided
     if args.output is None:
-        output_dir = Path("/home/franka/eva_tony/data/recordings")
+        output_dir = Path("./data/recordings")
         output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         ext = "svo2" if args.svo else "mp4"

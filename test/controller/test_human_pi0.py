@@ -2,7 +2,7 @@
 
 The constructor reads a trajectory from disk via ``load_trajectory_data``.
 We patch that to return synthetic data so the test does not depend on
-``/home/franka/eva_tony/human_data``.
+the human-data directory (``$EVA_HUMAN_DATA``).
 """
 from __future__ import annotations
 

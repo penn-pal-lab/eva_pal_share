@@ -430,7 +430,7 @@ class AAWRPolicy:
     def save_grid(self, save_filepath):
         """
         Save the most recent occupancy grid to EVA recording dir filepath.
-        eg: '/home/franka/eva_tony/eva/utils/../../data/failure/2025-05-11/2025-05-11_18-13-29/trajectory.h5'
+        eg: 'data/failure/2025-05-11/2025-05-11_18-13-29/trajectory.h5'
         """
         if not self.prev_positions or not self.prev_angles:
             blue_print("No occupancy grid data available to save")

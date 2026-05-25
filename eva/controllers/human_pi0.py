@@ -24,7 +24,7 @@ Version:
 '''
 @dataclass
 class DemoDiffusionConfig:
-    remote_host: str = "10.102.212.31"
+    remote_host: str = "127.0.0.1"
     remote_port: int = 8000
     action_space: str = "joint_velocity"
     gripper_action_space: str = "position"
@@ -39,7 +39,7 @@ class DemoDiffusionConfig:
     traj: int = 0
     gripper_threshold: float = 0.3
 
-BASE_PATH = '/home/franka/eva_tony/human_data'
+BASE_PATH = os.environ.get("EVA_HUMAN_DATA", os.path.expanduser("~/eva_data/human_data"))
 RETARGET_MODE = "cartesian_position"
 
 open_loop_horizon = 8

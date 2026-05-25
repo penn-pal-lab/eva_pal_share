@@ -26,7 +26,7 @@ Version:
 class ReplayConfig:
     # PI0 config
     init_instruction: str = "pick up the yellow pineapple toy and place it on the table"
-    remote_host: str = "10.102.212.31"
+    remote_host: str = "127.0.0.1"
     remote_port: int = 8000
     action_space: str = "joint_velocity"
     gripper_action_space: str = "position"
